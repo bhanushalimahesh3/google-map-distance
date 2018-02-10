@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Distance</title>
+    <!-- Latest compiled and minified CSS -->
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css">
+
+    <!-- jQuery library -->
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.2.1/jquery.min.js"></script>
+
+    <!-- Latest compiled JavaScript -->
+    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/js/bootstrap.min.js"></script>
+    <style type="text/css">
+      #map {
+        width: 100%;
+        height: 500px;
+      }
+    </style>
+  </head>
+  <body>
+  	<div class="container">
+ 		<h1>Find distance & time between cities</h1>
+ 		<br>
+ 		<div class="row">
+ 			<div class="col-sm-3 col-md-3">
+          <div id="mode-selector" class="form-group">
+            <input type="radio" name="type" id="changemode-walking" checked="checked">
+            <label for="changemode-walking">Walking</label>
+
+            <input type="radio" name="type" id="changemode-transit">
+            <label for="changemode-transit">Transit</label>
+
+            <input type="radio" name="type" id="changemode-driving">
+            <label for="changemode-driving">Driving</label>
+          </div>
+ 				  <div class="form-group">
+ 				    <label for="from-city">From City:</label>
+ 				    <input type="text" class="form-control" id="from-city">
+ 				  </div>
+ 				  <div class="form-group">
+ 				    <label for="to-city">To City:</label>
+ 				    <input type="text" class="form-control" id="to-city">
+ 				  </div>
+
+          <div class="form-group">
+            <label for="">Distance : <span  id="distance">0</span></label>            
+          </div> 
+          <div class="form-group">
+            <label for="">Time to travel : <span  id="time">0</span></label>            
+          </div> 				
+ 			</div>
+      <div class="col-sm-9 col-md-9">
+        <div id="map"></div>
+      </div>
+ 		</div> 
+    <br>
+    <div class="row">
+      
+    </div>		
+  	</div>
+
+    <script>
+          // This example requires the Places library. Include the libraries=places
+          // parameter when you first load the API. For example:
+          // <script src="https://maps.googleapis.com/maps/api/js?key=YOUR_API_KEY&libraries=places">
+
+          function initMap() {
+            var map = new google.maps.Map(document.getElementById('map'), {
+              mapTypeControl: false,
+              center: {lat: -33.8688, lng: 151.2195},
+              zoom: 13
+            });
+
+            new AutocompleteDirectionsHandler(map);
+          }
+
+           /**
+            * @constructor
+           */
+          function AutocompleteDirectionsHandler(map) {
+            this.map = map;
+            this.originPlaceId = null;
+            this.destinationPlaceId = null;
+            this.originPlaceObj = null;
+            this.destinationPlaceObj = null;
+            this.travelMode = 'WALKING';
+            this.timeElement = document.getElementById('time');
+            this.distanceElement = document.getElementById('distance');
+            var originInput = document.getElementById('from-city');
+            var destinationInput = document.getElementById('to-city');
+            //var modeSelector = document.getElementById('mode-selector');
+            this.directionsService = new google.maps.DirectionsService;
+            this.directionsDisplay = new google.maps.DirectionsRenderer;
+            this.directionsDisplay.setMap(map);
+
+            // distance matrix
+            this.distanceService = new google.maps.DistanceMatrixService;
+
+            var originAutocomplete = new google.maps.places.Autocomplete(
+                originInput, {placeIdOnly: true});
+            var destinationAutocomplete = new google.maps.places.Autocomplete(
+                destinationInput, {placeIdOnly: true});
+
+            this.setupClickListener('changemode-walking', 'WALKING');
+            this.setupClickListener('changemode-transit', 'TRANSIT');
+            this.setupClickListener('changemode-driving', 'DRIVING');
+
+            this.setupPlaceChangedListener(originAutocomplete, 'ORIG');
+            this.setupPlaceChangedListener(destinationAutocomplete, 'DEST');
+
+            /*this.map.controls[google.maps.ControlPosition.TOP_LEFT].push(originInput);
+            this.map.controls[google.maps.ControlPosition.TOP_LEFT].push(destinationInput);*/
+            /*this.map.controls[google.maps.ControlPosition.TOP_LEFT].push(modeSelector);*/
+          }
+
+          // Sets a listener on a radio button to change the filter type on Places
+          // Autocomplete.
+          AutocompleteDirectionsHandler.prototype.setupClickListener = function(id, mode) {
+            var radioButton = document.getElementById(id);
+            var me = this;
+            radioButton.addEventListener('click', function() {
+              me.travelMode = mode;
+              me.route();
+            });
+          };
+
+          AutocompleteDirectionsHandler.prototype.setupPlaceChangedListener = function(autocomplete, mode) {
+            var me = this;
+            autocomplete.bindTo('bounds', this.map);
+            autocomplete.addListener('place_changed', function() {
+              var place = autocomplete.getPlace();
+              if (!place.place_id) {
+                window.alert("Please select an option from the dropdown list.");
+                return;
+              }
+              if (mode === 'ORIG') {
+                me.originPlaceId = place.place_id;
+                me.originPlaceObj = place;
+              } else {
+                me.destinationPlaceId = place.place_id;
+                me.destinationPlaceObj = place;
+              }
+              me.route();
+            });
+
+          };
+
+          AutocompleteDirectionsHandler.prototype.route = function() {
+            if (!this.originPlaceId || !this.destinationPlaceId) {
+              return;
+            }
+            var me = this;
+
+            this.directionsService.route({
+              origin: {'placeId': this.originPlaceId},
+              destination: {'placeId': this.destinationPlaceId},
+              travelMode: this.travelMode
+            }, function(response, status) {
+              if (status === 'OK') {
+                me.directionsDisplay.setDirections(response);
+              } else {
+                window.alert('Directions request failed due to ' + status);
+              }
+            });
+
+            me.distanceMatrix();
+          };
+
+          AutocompleteDirectionsHandler.prototype.distanceMatrix = function() {            
+            var me = this;
+            me.distanceService.getDistanceMatrix(
+              {
+                origins: [this.originPlaceObj.name],
+                destinations: [this.destinationPlaceObj.name],
+                travelMode: this.travelMode,
+                /*transitOptions: TransitOptions,
+                drivingOptions: DrivingOptions,
+                unitSystem: UnitSystem,
+                avoidHighways: Boolean,
+                avoidTolls: Boolean,*/
+              }, function(response, status){
+                if (status !== 'OK') {
+                    alert('Error was: ' + status);
+                } else {
+
+                  me.timeElement.innerHTML = response.rows[0].elements[0].duration.text;
+                  me.distanceElement.innerHTML = response.rows[0].elements[0].distance.text;
+                  
+                
+                }
+              });
+          };
+
+
+        </script>
+    <script src="https://maps.googleapis.com/maps/api/js?key=YOUR_API_KEY&libraries=places&callback=initMap" async defer></script>
+  </body>
+</html>
